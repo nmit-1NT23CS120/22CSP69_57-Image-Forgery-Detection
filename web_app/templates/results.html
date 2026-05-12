@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analysis Results — ForensicAI</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#050810;--card:#0d1425;
+  --border:#1a2540;--accent:#3b82f6;--accent2:#06b6d4;
+  --danger:#ef4444;--warn:#f59e0b;--safe:#22c55e;
+  --text:#e2e8f0;--muted:#64748b;
+}
+body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:40px 20px;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(59,130,246,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,0.03) 1px,transparent 1px);background-size:50px 50px;pointer-events:none;z-index:0;}
+.container{max-width:1100px;margin:0 auto;position:relative;z-index:1;}
+.back-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:10px;background:var(--card);border:1px solid var(--border);color:var(--muted);font-size:0.85rem;cursor:pointer;margin-bottom:32px;transition:all 0.2s;text-decoration:none;font-family:'Space Grotesk',sans-serif;}
+.back-btn:hover{color:var(--text);border-color:var(--accent)}
+.result-title{font-size:1.8rem;font-weight:700;letter-spacing:-1px;margin-bottom:24px;}
+.verdict{border-radius:20px;padding:32px;margin-bottom:28px;position:relative;overflow:hidden;}
+.verdict.forged{background:linear-gradient(135deg,rgba(239,68,68,0.15),rgba(239,68,68,0.05));border:1px solid rgba(239,68,68,0.3);}
+.verdict.authentic{background:linear-gradient(135deg,rgba(34,197,94,0.15),rgba(34,197,94,0.05));border:1px solid rgba(34,197,94,0.3);}
+.verdict-inner{display:flex;align-items:center;gap:24px;flex-wrap:wrap;}
+.verdict-icon{font-size:3.5rem;line-height:1}
+.verdict-label{font-size:0.7rem;letter-spacing:2px;text-transform:uppercase;font-family:'JetBrains Mono',monospace;opacity:0.7;margin-bottom:6px;}
+.verdict-result{font-size:2.2rem;font-weight:800;letter-spacing:-1px;line-height:1;margin-bottom:8px;}
+.verdict-conf{font-size:1rem;opacity:0.8}
+.trust-pill{margin-left:auto;padding:10px 24px;border-radius:30px;font-weight:700;font-size:0.9rem;font-family:'JetBrains Mono',monospace;letter-spacing:1px;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;}
+@media(max-width:700px){.two-col{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:24px;}
+.card-header{font-size:0.7rem;letter-spacing:2px;text-transform:uppercase;font-family:'JetBrains Mono',monospace;color:var(--accent);margin-bottom:16px;}
+.card img{width:100%;border-radius:12px;display:block}
+.no-heatmap{height:200px;display:flex;align-items:center;justify-content:center;color:var(--muted);border:1px dashed var(--border);border-radius:12px;font-size:0.85rem;}
+.conf-row{margin-bottom:14px}
+.conf-label{display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:6px;}
+.conf-bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden}
+.conf-fill{height:100%;border-radius:4px;}
+.fill-danger{background:linear-gradient(90deg,#ef4444,#f97316)}
+.fill-safe{background:linear-gradient(90deg,#22c55e,#10b981)}
+.model-table{width:100%;border-collapse:collapse}
+.model-table th{text-align:left;padding:10px 14px;font-size:0.7rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace;}
+.model-table td{padding:12px 14px;border-bottom:1px solid rgba(26,37,64,0.5);font-size:0.88rem}
+.model-table tr:last-child td{border-bottom:none}
+.model-table tr.highlight td{background:rgba(59,130,246,0.05)}
+.tag{display:inline-block;padding:3px 10px;border-radius:6px;font-size:0.7rem;font-weight:600;font-family:'JetBrains Mono',monospace;}
+.tag-forged{background:rgba(239,68,68,0.15);color:#ef4444}
+.tag-auth{background:rgba(34,197,94,0.15);color:#22c55e}
+.tag-best{background:rgba(59,130,246,0.15);color:var(--accent);margin-left:6px}
+.platform-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+@media(max-width:600px){.platform-grid{grid-template-columns:1fr}}
+.platform-card{background:rgba(59,130,246,0.04);border:1px solid var(--border);border-radius:14px;padding:16px;}
+.platform-name{font-weight:600;font-size:0.9rem;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.platform-row{display:flex;justify-content:space-between;align-items:center;font-size:0.78rem;color:var(--muted);margin-bottom:6px;padding:4px 0;border-bottom:1px solid rgba(26,37,64,0.4);}
+.platform-row:last-child{border-bottom:none;margin-bottom:0}
+.detected{color:#22c55e;font-weight:600}
+.missed{color:#ef4444;font-weight:600}
+.hint{font-size:0.75rem;color:var(--muted);margin-top:4px;}
+</style>
+</head>
+<body>
+<div class="container" id="app">
+  <a href="/" class="back-btn">← Back to Home</a>
+  <div class="result-title">Analysis Report</div>
+  <div id="content">Loading results...</div>
+</div>
+
+<script>
+// ── Get results from sessionStorage ──────────────────────────
+const raw  = sessionStorage.getItem('forensicResults');
+const data = raw ? JSON.parse(raw) : null;
+
+if (!data) {
+  document.getElementById('content').innerHTML =
+    '<div style="color:#ef4444;padding:40px;text-align:center">' +
+    'No results found. <a href="/" style="color:#3b82f6">Go back and analyze an image.</a></div>';
+} else {
+  renderResults(data);
+}
+
+function renderResults(d) {
+  const isForged    = d.predicted === 'FORGED';
+  const verdictCls  = isForged ? 'forged' : 'authentic';
+  const verdictIcon = isForged ? '⚠️' : '✅';
+  const verdictCol  = isForged ? '#ef4444' : '#22c55e';
+  const trustColor  = d.trust_color || '#f59e0b';
+
+  // ── Build model comparison rows ──────────────────────────
+  let modelRows = '';
+  const modelComp = d.model_comparison || {};
+  const modelKeys = Object.keys(modelComp);
+  modelKeys.forEach(function(name, i) {
+    const r    = modelComp[name];
+    const isOurs = name.includes('Hybrid') || name.includes('Ours');
+    const tag  = r.predicted === 'FORGED'
+      ? '<span class="tag tag-forged">FORGED</span>'
+      : '<span class="tag tag-auth">AUTHENTIC</span>';
+    const oursBadge = isOurs ? '<span class="tag tag-best">OURS</span>' : '';
+    modelRows +=
+      '<tr' + (isOurs ? ' class="highlight"' : '') + '>' +
+      '<td>' + name + oursBadge + '</td>' +
+      '<td>' + tag + '</td>' +
+      '<td style="font-family:\'JetBrains Mono\',monospace">' + r.confidence + '%</td>' +
+      '</tr>';
+  });
+
+  // ── Build platform cards ─────────────────────────────────
+  const platformIcons = {
+    facebook : ' Facebook',
+    instagram: ' Instagram',
+    whatsapp : ' WhatsApp',
+    twitter  : ' Twitter'
+  };
+  const modelDisplay = {
+    resnet      : 'ResNet50',
+    efficientnet: 'EfficientNet',
+    hybrid      : 'Hybrid '
+  };
+
+  let platformCards = '';
+  const platResults = d.platform_results || {};
+  Object.keys(platResults).forEach(function(platform) {
+    const models = platResults[platform];
+    let rows = '';
+    Object.keys(models).forEach(function(mkey) {
+      const r       = models[mkey];
+      const label   = modelDisplay[mkey] || mkey;
+      const detected = r.predicted === 'FORGED';
+      const cls     = detected ? 'detected' : 'missed';
+      const symbol  = detected ? '✓ Detected' : '✗ Missed';
+      rows +=
+        '<div class="platform-row">' +
+        '<span>' + label + '</span>' +
+        '<span class="' + cls + '">' + symbol + ' ' + r.confidence + '%</span>' +
+        '</div>';
+    });
+    const iconLabel = platformIcons[platform] || platform;
+    platformCards +=
+      '<div class="platform-card">' +
+      '<div class="platform-name">' + iconLabel + '</div>' +
+      rows +
+      '</div>';
+  });
+
+  // ── Heatmap section ──────────────────────────────────────
+  const heatmapHtml = d.heatmap_url
+    ? '<img src="' + d.heatmap_url + '" alt="Heatmap">' +
+      '<p class="hint">Red = suspicious regions · Blue = normal regions</p>'
+    : '<div class="no-heatmap">Heatmap not available</div>';
+
+  // ── Render everything ────────────────────────────────────
+  document.getElementById('content').innerHTML =
+
+    // Verdict banner
+    '<div class="verdict ' + verdictCls + '">' +
+    '<div class="verdict-inner">' +
+    '<div class="verdict-icon">' + verdictIcon + '</div>' +
+    '<div>' +
+    '<div class="verdict-label">Verdict</div>' +
+    '<div class="verdict-result" style="color:' + verdictCol + '">' + d.predicted + '</div>' +
+    '<div class="verdict-conf">Forgery probability: <strong>' + d.forged_prob + '%</strong></div>' +
+    '</div>' +
+    '<div class="trust-pill" style="background:' + trustColor + '22;color:' + trustColor + ';border:1px solid ' + trustColor + '44">' +
+    d.trust + '</div>' +
+    '</div></div>' +
+
+    // Images row
+    '<div class="two-col">' +
+    '<div class="card">' +
+    '<div class="card-header">📷 Original Image</div>' +
+    '<img src="' + d.img_url + '" alt="Uploaded">' +
+    '</div>' +
+    '<div class="card">' +
+    '<div class="card-header">🗺️ Grad-CAM Heatmap</div>' +
+    heatmapHtml +
+    '</div>' +
+    '</div>' +
+
+    // Confidence + Model comparison
+    '<div class="two-col">' +
+    '<div class="card">' +
+    '<div class="card-header">📊 Confidence Scores</div>' +
+    '<div class="conf-row">' +
+    '<div class="conf-label"><span>Forged</span><span>' + d.forged_prob + '%</span></div>' +
+    '<div class="conf-bar"><div class="conf-fill fill-danger" style="width:' + d.forged_prob + '%"></div></div>' +
+    '</div>' +
+    '<div class="conf-row">' +
+    '<div class="conf-label"><span>Authentic</span><span>' + d.auth_prob + '%</span></div>' +
+    '<div class="conf-bar"><div class="conf-fill fill-safe" style="width:' + d.auth_prob + '%"></div></div>' +
+    '</div>' +
+    '</div>' +
+    '<div class="card">' +
+    '<div class="card-header">🤖 Model Comparison</div>' +
+    '<table class="model-table"><thead><tr><th>Model</th><th>Prediction</th><th>Confidence</th></tr></thead>' +
+    '<tbody>' + modelRows + '</tbody></table>' +
+    '</div>' +
+    '</div>' +
+
+    // Platform testing
+    '<div class="card">' +
+    '<div class="card-header">🌐 Social Media Compression Test</div>' +
+    '<p style="font-size:0.82rem;color:var(--muted);margin-bottom:16px">' +
+    'Image compressed through each platform then tested. Shows existing models fail — ours stays robust.' +
+    '</p>' +
+    '<div class="platform-grid">' + platformCards + '</div>' +
+    '</div>';
+}
+</script>
+</body>
+</html>

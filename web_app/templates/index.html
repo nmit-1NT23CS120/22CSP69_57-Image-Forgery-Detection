@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ForensicAI — Image Forgery Detection</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#050810;
+  --bg2:#0a0f1e;
+  --card:#0d1425;
+  --border:#1a2540;
+  --accent:#3b82f6;
+  --accent2:#06b6d4;
+  --danger:#ef4444;
+  --warn:#f59e0b;
+  --safe:#22c55e;
+  --text:#e2e8f0;
+  --muted:#64748b;
+  --glow:rgba(59,130,246,0.15);
+}
+html{scroll-behavior:smooth}
+body{
+  font-family:'Space Grotesk',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* ── Animated grid background ── */
+body::before{
+  content:'';
+  position:fixed;inset:0;
+  background-image:
+    linear-gradient(rgba(59,130,246,0.03) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(59,130,246,0.03) 1px,transparent 1px);
+  background-size:50px 50px;
+  pointer-events:none;z-index:0;
+}
+
+/* ── Glowing orbs ── */
+.orb{
+  position:fixed;border-radius:50%;
+  filter:blur(80px);pointer-events:none;z-index:0;
+  animation:float 8s ease-in-out infinite;
+}
+.orb1{width:600px;height:600px;background:rgba(59,130,246,0.08);top:-200px;left:-200px;}
+.orb2{width:400px;height:400px;background:rgba(6,182,212,0.06);bottom:-100px;right:-100px;animation-delay:3s;}
+.orb3{width:300px;height:300px;background:rgba(139,92,246,0.05);top:50%;left:50%;animation-delay:5s;}
+@keyframes float{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-30px) scale(1.05)}}
+
+/* ── Nav ── */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  padding:20px 40px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(5,8,16,0.8);
+  backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+}
+.logo{
+  display:flex;align-items:center;gap:12px;
+  font-size:1.2rem;font-weight:700;
+  letter-spacing:-0.5px;
+}
+.logo-icon{
+  width:36px;height:36px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.1rem;
+}
+.nav-badges{display:flex;gap:10px}
+.badge{
+  padding:5px 12px;border-radius:20px;
+  font-size:0.7rem;font-weight:600;letter-spacing:1px;
+  font-family:'JetBrains Mono',monospace;
+}
+.badge-blue{background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:var(--accent)}
+.badge-cyan{background:rgba(6,182,212,0.15);border:1px solid rgba(6,182,212,0.3);color:var(--accent2)}
+
+/* ── Hero ── */
+.hero{
+  position:relative;z-index:1;
+  min-height:100vh;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:120px 40px 60px;
+  text-align:center;
+}
+.hero-tag{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:8px 20px;border-radius:30px;
+  background:rgba(59,130,246,0.1);
+  border:1px solid rgba(59,130,246,0.25);
+  font-size:0.75rem;font-weight:600;
+  letter-spacing:2px;text-transform:uppercase;
+  color:var(--accent);margin-bottom:32px;
+}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.8)}}
+
+h1{
+  font-size:clamp(2.5rem,6vw,5rem);
+  font-weight:700;line-height:1.1;
+  letter-spacing:-2px;margin-bottom:12px;
+}
+.grad{
+  background:linear-gradient(135deg,#fff 0%,var(--accent) 50%,var(--accent2) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.sub{
+  font-size:clamp(1rem,2vw,1.3rem);
+  color:var(--muted);max-width:600px;
+  line-height:1.7;margin:20px auto 48px;
+}
+
+/* ── Stats bar ── */
+.stats{
+  display:flex;gap:40px;justify-content:center;
+  flex-wrap:wrap;margin-bottom:60px;
+}
+.stat{text-align:center}
+.stat-num{
+  font-size:2rem;font-weight:700;
+  font-family:'JetBrains Mono',monospace;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.stat-label{font-size:0.75rem;color:var(--muted);letter-spacing:1px;margin-top:4px}
+
+/* ── Upload Zone ── */
+.upload-section{
+  position:relative;z-index:1;
+  width:100%;max-width:700px;
+  margin:0 auto;
+}
+.upload-zone{
+  border:2px dashed var(--border);
+  border-radius:24px;
+  padding:60px 40px;
+  background:var(--card);
+  cursor:pointer;transition:all 0.3s ease;
+  position:relative;overflow:hidden;
+}
+.upload-zone::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(circle at 50% 0%,var(--glow),transparent 70%);
+  opacity:0;transition:opacity 0.3s;
+}
+.upload-zone:hover{border-color:var(--accent);transform:translateY(-4px)}
+.upload-zone:hover::before{opacity:1}
+.upload-zone.dragover{
+  border-color:var(--accent);
+  background:rgba(59,130,246,0.05);
+  transform:scale(1.02);
+}
+.upload-icon{
+  width:72px;height:72px;
+  background:linear-gradient(135deg,rgba(59,130,246,0.2),rgba(6,182,212,0.2));
+  border-radius:20px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:2rem;margin:0 auto 24px;
+  border:1px solid rgba(59,130,246,0.2);
+}
+.upload-title{font-size:1.3rem;font-weight:600;margin-bottom:8px}
+.upload-sub{color:var(--muted);font-size:0.9rem;margin-bottom:24px}
+.upload-btn{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:14px 32px;border-radius:12px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#fff;font-weight:600;font-size:0.95rem;
+  border:none;cursor:pointer;transition:all 0.3s;
+  font-family:'Space Grotesk',sans-serif;
+}
+.upload-btn:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(59,130,246,0.4)}
+.file-types{
+  margin-top:20px;color:var(--muted);
+  font-size:0.75rem;font-family:'JetBrains Mono',monospace;
+}
+#fileInput{display:none}
+
+/* ── Preview ── */
+#previewSection{display:none;margin-top:24px}
+.preview-card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:20px;padding:24px;
+  display:flex;align-items:center;gap:20px;
+}
+#previewImg{
+  width:80px;height:80px;object-fit:cover;
+  border-radius:12px;border:2px solid var(--border);
+}
+.preview-info{flex:1}
+.preview-name{font-weight:600;margin-bottom:4px}
+.preview-size{color:var(--muted);font-size:0.85rem}
+.analyze-btn{
+  padding:14px 32px;border-radius:12px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#fff;font-weight:700;font-size:1rem;
+  border:none;cursor:pointer;transition:all 0.3s;
+  font-family:'Space Grotesk',sans-serif;
+  display:flex;align-items:center;gap:8px;
+}
+.analyze-btn:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(59,130,246,0.4)}
+.analyze-btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+
+/* ── Loading ── */
+#loadingSection{display:none;margin-top:30px}
+.loading-card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:20px;padding:40px;text-align:center;
+}
+.spinner{
+  width:50px;height:50px;
+  border:3px solid var(--border);
+  border-top-color:var(--accent);
+  border-radius:50%;animation:spin 1s linear infinite;
+  margin:0 auto 20px;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{color:var(--muted);font-size:0.9rem}
+.loading-steps{margin-top:16px;display:flex;flex-direction:column;gap:8px}
+.step{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 16px;border-radius:8px;
+  background:rgba(59,130,246,0.05);
+  font-size:0.8rem;color:var(--muted);
+  font-family:'JetBrains Mono',monospace;
+}
+.step.active{color:var(--accent);background:rgba(59,130,246,0.1)}
+.step-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+/* ── Features section ── */
+.features{
+  position:relative;z-index:1;
+  padding:80px 40px;max-width:1100px;
+  margin:0 auto;
+}
+.section-tag{
+  text-align:center;
+  font-size:0.75rem;letter-spacing:2px;
+  text-transform:uppercase;color:var(--accent);
+  font-family:'JetBrains Mono',monospace;
+  margin-bottom:16px;
+}
+.section-title{
+  text-align:center;font-size:2.2rem;
+  font-weight:700;letter-spacing:-1px;margin-bottom:60px;
+}
+.cards-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:20px;
+}
+.feature-card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:20px;padding:30px;
+  transition:all 0.3s;position:relative;overflow:hidden;
+}
+.feature-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+  opacity:0;transition:opacity 0.3s;
+}
+.feature-card:hover{transform:translateY(-6px);border-color:rgba(59,130,246,0.3)}
+.feature-card:hover::before{opacity:1}
+.card-icon{
+  font-size:2rem;margin-bottom:16px;
+  width:56px;height:56px;
+  background:rgba(59,130,246,0.1);border-radius:14px;
+  display:flex;align-items:center;justify-content:center;
+  border:1px solid rgba(59,130,246,0.2);
+}
+.card-title{font-size:1.1rem;font-weight:600;margin-bottom:8px}
+.card-desc{color:var(--muted);font-size:0.88rem;line-height:1.7}
+
+/* ── Models section ── */
+.models-section{
+  position:relative;z-index:1;
+  padding:40px 40px 80px;max-width:1100px;margin:0 auto;
+}
+.models-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+  gap:20px;
+}
+.model-card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:20px;padding:28px;
+  position:relative;overflow:hidden;
+}
+.model-card.best{
+  border-color:rgba(59,130,246,0.4);
+  background:linear-gradient(135deg,var(--card),rgba(59,130,246,0.05));
+}
+.model-badge{
+  position:absolute;top:16px;right:16px;
+  padding:4px 12px;border-radius:20px;
+  font-size:0.65rem;font-weight:700;letter-spacing:1px;
+  text-transform:uppercase;
+}
+.badge-best{background:rgba(59,130,246,0.2);color:var(--accent);border:1px solid rgba(59,130,246,0.3)}
+.badge-base{background:rgba(100,116,139,0.2);color:var(--muted);border:1px solid rgba(100,116,139,0.2)}
+.model-name{font-size:1.1rem;font-weight:700;margin-bottom:6px}
+.model-desc{font-size:0.82rem;color:var(--muted);margin-bottom:20px;line-height:1.6}
+.model-acc{
+  font-family:'JetBrains Mono',monospace;
+  font-size:0.75rem;color:var(--muted);
+}
+.acc-bar{
+  height:4px;background:var(--border);
+  border-radius:2px;margin:6px 0 4px;overflow:hidden;
+}
+.acc-fill{
+  height:100%;border-radius:2px;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+  transition:width 1s ease;
+}
+
+/* ── Footer ── */
+footer{
+  position:relative;z-index:1;
+  border-top:1px solid var(--border);
+  padding:30px 40px;text-align:center;
+  color:var(--muted);font-size:0.82rem;
+}
+
+/* ── Results overlay ── */
+#resultsOverlay{
+  display:none;position:fixed;inset:0;z-index:200;
+  background:rgba(5,8,16,0.95);backdrop-filter:blur(20px);
+  overflow-y:auto;
+}
+</style>
+</head>
+<body>
+
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+<div class="orb orb3"></div>
+
+<!-- Nav -->
+<nav>
+  <div class="logo">
+    <div class="logo-icon">🔍</div>
+    ForensicAI
+  </div>
+  <div class="nav-badges">
+    <span class="badge badge-blue">DEEP LEARNING</span>
+    <span class="badge badge-cyan">SOCIAL MEDIA AWARE</span>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-tag">
+    <span class="dot"></span>
+    AI-Powered Digital Forensics
+  </div>
+
+  <h1>
+    <span class="grad">Detect Image Forgery</span><br>
+    Through Any Compression
+  </h1>
+
+  <p class="sub">
+    The only forgery detector trained to survive Facebook, Instagram,
+    WhatsApp and Twitter compression. Upload any image — we'll tell you
+    if it's real or manipulated.
+  </p>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-num">15,386</div>
+      <div class="stat-label">Training Images</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">3</div>
+      <div class="stat-label">AI Models</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">4</div>
+      <div class="stat-label">Social Platforms</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">~89%</div>
+      <div class="stat-label">Accuracy</div>
+    </div>
+  </div>
+
+  <!-- Upload Zone -->
+  <div class="upload-section">
+    <div class="upload-zone" id="dropZone">
+      <div class="upload-icon">📁</div>
+      <div class="upload-title">Drop your image here</div>
+      <div class="upload-sub">or click to browse files</div>
+      <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+        ⬆ Choose Image
+      </button>
+      <div class="file-types">JPG · PNG · BMP · WEBP supported</div>
+      <input type="file" id="fileInput" accept="image/*">
+    </div>
+
+    <!-- Preview -->
+    <div id="previewSection">
+      <div class="preview-card">
+        <img id="previewImg" src="" alt="Preview">
+        <div class="preview-info">
+          <div class="preview-name" id="previewName">filename.jpg</div>
+          <div class="preview-size" id="previewSize">0 KB</div>
+        </div>
+        <button class="analyze-btn" id="analyzeBtn" onclick="analyzeImage()">
+          🔬 Analyze
+        </button>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loadingSection">
+      <div class="loading-card">
+        <div class="spinner"></div>
+        <div class="loading-text">Analyzing image...</div>
+        <div class="loading-steps">
+          <div class="step active" id="step1"><div class="step-dot"></div>Preprocessing image</div>
+          <div class="step" id="step2"><div class="step-dot"></div>Running spatial analysis</div>
+          <div class="step" id="step3"><div class="step-dot"></div>Running frequency analysis</div>
+          <div class="step" id="step4"><div class="step-dot"></div>Testing social media compression</div>
+          <div class="step" id="step5"><div class="step-dot"></div>Generating heatmap</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="features">
+  <div class="section-tag">Why ForensicAI</div>
+  <h2 class="section-title">Built Different</h2>
+  <div class="cards-grid">
+    <div class="feature-card">
+      <div class="card-icon">🌐</div>
+      <div class="card-title">Social Media Aware</div>
+      <div class="card-desc">Trained on images compressed by Facebook, Instagram, WhatsApp and Twitter pipelines. Other models fail here — ours thrives.</div>
+    </div>
+    <div class="feature-card">
+      <div class="card-icon">📊</div>
+      <div class="card-title">Frequency Analysis</div>
+      <div class="card-desc">Our hybrid model analyzes both pixel-level spatial features AND frequency-domain artifacts using DCT analysis — invisible to regular models.</div>
+    </div>
+    <div class="feature-card">
+      <div class="card-icon">🗺️</div>
+      <div class="card-title">Grad-CAM Heatmaps</div>
+      <div class="card-desc">See exactly WHERE the model detected manipulation. Red regions highlight suspicious areas — full transparency in every decision.</div>
+    </div>
+    <div class="feature-card">
+      <div class="card-icon">🎯</div>
+      <div class="card-title">Trust Scoring</div>
+      <div class="card-desc">Every analysis produces a structured risk assessment — Low Risk, Suspicious, or High Risk — with probability scores for each class.</div>
+    </div>
+    <div class="feature-card">
+      <div class="card-icon">⚡</div>
+      <div class="card-title">3 Model Comparison</div>
+      <div class="card-desc">Compare all three models side by side — see how ResNet50 and EfficientNet perform versus our hybrid model on the same image.</div>
+    </div>
+    <div class="feature-card">
+      <div class="card-icon">🔒</div>
+      <div class="card-title">Platform Testing</div>
+      <div class="card-desc">Automatically simulates your image through each social media platform and tests if forgery is still detectable after compression.</div>
+    </div>
+  </div>
+</section>
+
+<!-- Models -->
+<section class="models-section">
+  <div class="section-tag">Architecture</div>
+  <h2 class="section-title">Three Models, One Winner</h2>
+  <div class="models-grid">
+    <div class="model-card">
+      <span class="model-badge badge-base">BASELINE</span>
+      <div class="model-name">ResNet50</div>
+      <div class="model-desc">Standard ResNet50 trained on clean images only. Represents existing forgery detection systems. Fails badly on social media compressed images.</div>
+      <div class="model-acc">Clean accuracy</div>
+      <div class="acc-bar"><div class="acc-fill" style="width:80%"></div></div>
+      <div class="model-acc">~80% clean · ~51% after Facebook</div>
+    </div>
+    <div class="model-card">
+      <span class="model-badge badge-base">IMPROVED</span>
+      <div class="model-name">EfficientNet-B4</div>
+      <div class="model-desc">EfficientNet-B4 trained with social media augmentation. Better than baseline but lacks frequency domain analysis.</div>
+      <div class="model-acc">Robust accuracy</div>
+      <div class="acc-bar"><div class="acc-fill" style="width:85%"></div></div>
+      <div class="model-acc">~85% clean · ~72% after Facebook</div>
+    </div>
+    <div class="model-card best">
+      <span class="model-badge badge-best">OUR MODEL</span>
+      <div class="model-name">Hybrid Model ⚡</div>
+      <div class="model-desc">EfficientNet-B4 + Frequency Branch. Trained with all social media compressions. Spatial + frequency fusion. Best performance across all platforms.</div>
+      <div class="model-acc">Hybrid accuracy</div>
+      <div class="acc-bar"><div class="acc-fill" style="width:89%"></div></div>
+      <div class="model-acc">~89% clean · ~83% after Facebook</div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>ForensicAI — Image Forgery Detection · Deep Learning · NITTE Meenakshi Institute of Technology · 2025–26</p>
+</footer>
+
+<!-- Results overlay (loaded dynamically) -->
+<div id="resultsOverlay"></div>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

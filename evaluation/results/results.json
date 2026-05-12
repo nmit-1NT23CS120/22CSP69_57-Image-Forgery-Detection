@@ -1,0 +1,98 @@
+{
+  "ResNet50 (Baseline)": {
+    "clean": {
+      "accuracy": 82.1,
+      "f1": 83.1,
+      "precision": 78.7,
+      "recall": 88.0
+    },
+    "facebook": {
+      "accuracy": 71.8,
+      "f1": 66.7,
+      "precision": 81.3,
+      "recall": 56.5
+    },
+    "instagram": {
+      "accuracy": 71.4,
+      "f1": 65.9,
+      "precision": 81.5,
+      "recall": 55.2
+    },
+    "whatsapp": {
+      "accuracy": 67.1,
+      "f1": 57.9,
+      "precision": 80.4,
+      "recall": 45.2
+    },
+    "twitter": {
+      "accuracy": 71.8,
+      "f1": 67.0,
+      "precision": 80.6,
+      "recall": 57.2
+    }
+  },
+  "EfficientNet-B4": {
+    "clean": {
+      "accuracy": 77.0,
+      "f1": 77.5,
+      "precision": 76.0,
+      "recall": 79.0
+    },
+    "facebook": {
+      "accuracy": 75.0,
+      "f1": 74.8,
+      "precision": 75.4,
+      "recall": 74.2
+    },
+    "instagram": {
+      "accuracy": 74.5,
+      "f1": 74.4,
+      "precision": 74.7,
+      "recall": 74.0
+    },
+    "whatsapp": {
+      "accuracy": 74.9,
+      "f1": 75.6,
+      "precision": 73.4,
+      "recall": 78.0
+    },
+    "twitter": {
+      "accuracy": 74.4,
+      "f1": 73.3,
+      "precision": 76.4,
+      "recall": 70.5
+    }
+  },
+  "Hybrid Model (Ours)": {
+    "clean": {
+      "accuracy": 78.2,
+      "f1": 78.9,
+      "precision": 76.5,
+      "recall": 81.5
+    },
+    "facebook": {
+      "accuracy": 75.0,
+      "f1": 75.7,
+      "precision": 73.6,
+      "recall": 78.0
+    },
+    "instagram": {
+      "accuracy": 76.0,
+      "f1": 76.4,
+      "precision": 75.1,
+      "recall": 77.8
+    },
+    "whatsapp": {
+      "accuracy": 75.2,
+      "f1": 76.5,
+      "precision": 72.7,
+      "recall": 80.8
+    },
+    "twitter": {
+      "accuracy": 76.5,
+      "f1": 76.8,
+      "precision": 75.7,
+      "recall": 78.0
+    }
+  }
+}

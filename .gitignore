@@ -1,0 +1,73 @@
+# ============================================================
+#  Image Forgery Detection — .gitignore
+# ============================================================
+
+# --- Datasets (too large; use download links in README) ---
+dataset/CASIA/
+dataset/Columbia/
+dataset/NIST16/
+dataset/processed/
+
+# Keep the dataset folder itself with a placeholder
+!dataset/.gitkeep
+
+# --- Saved model weights (large binary files) ---
+saved_models/*.pth
+saved_models/*.pt
+saved_models/*.h5
+
+# Keep the folder
+!saved_models/.gitkeep
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.Python
+
+# --- Virtual environments ---
+venv/
+env/
+.venv/
+ENV/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+*.ipynb
+
+# --- Generated outputs ---
+results/*.png
+results/*.csv
+results/*.json
+web_app/static/uploads/
+web_app/static/heatmaps/
+
+# Keep results folder
+!results/.gitkeep
+!web_app/static/uploads/.gitkeep
+!web_app/static/heatmaps/.gitkeep
+
+# --- OS files ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- IDE ---
+.vscode/
+.idea/
+*.suo
+*.user
+
+# --- Environment variables ---
+.env
+.env.local
+*.env
+
+# --- Logs ---
+*.log
+logs/
