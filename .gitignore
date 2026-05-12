@@ -71,3 +71,6 @@ desktop.ini
 # --- Logs ---
 *.log
 logs/
+
+dataset/processed.zip
+web_app/static/results/
