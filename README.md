@@ -7,7 +7,7 @@ A robust, explainable hybrid deep learning system that detects forged images spe
 
 ---
 
-## Team
+## Team Members
 
 | Name | USN |
 |------|-----|
