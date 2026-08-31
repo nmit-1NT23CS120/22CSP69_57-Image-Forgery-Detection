@@ -19,6 +19,9 @@ from flask import (Flask, render_template, request,
                    jsonify, url_for)
 from werkzeug.utils import secure_filename
 
+from exif_utils import extract_exif_features, EXIF_FEATURE_NAMES
+from models_v2 import HybridModelV2
+
 BASE_DIR   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODELS_DIR = os.path.join(BASE_DIR, 'saved_models')
 UPLOAD_DIR = os.path.join(BASE_DIR, 'web_app', 'static', 'uploads')
@@ -131,12 +134,28 @@ def load_model(cls, fname):
     print(f'  Loaded {fname}')
     return m
 
+def load_hybrid_v2():
+    fname = 'hybrid_model_v2_exif.pth'
+    path = os.path.join(MODELS_DIR, fname)
+    if not os.path.exists(path):
+        print(f'  INFO: {fname} not found — EXIF-aware model not loaded '
+              f'(falling back to Phase 1 hybrid for all predictions)')
+        return None
+    ck = torch.load(path, map_location=DEVICE)
+    state = ck.get('model_state', ck)
+    m = HybridModelV2().to(DEVICE)
+    m.load_state_dict(state, strict=True)
+    m.eval()
+    print(f'  Loaded {fname}')
+    return m
+
 print('Loading models...')
 MODELS = {
     'resnet'      : load_resnet(),
     'efficientnet': load_model(EfficientNetModel, 'efficientnet_model.pth'),
     'hybrid'      : load_model(HybridModel, 'hybrid_model.pth'),
 }
+HYBRID_V2 = load_hybrid_v2()   # None until you drop in hybrid_model_v2_exif.pth
 print('All models loaded!')
 
 def jpeg_compress_pil(pil_img, quality):
@@ -237,6 +256,32 @@ def predict(model_key, pil_img, generate_heatmap=False):
             print(f'GradCAM error: {e}')
     return result
 
+def predict_with_exif(pil_img, img_path):
+    """
+    Runs the EXIF-aware Hybrid V2 model, if it's loaded. Returns None if
+    hybrid_model_v2_exif.pth hasn't been dropped into saved_models/ yet,
+    so callers can gracefully skip this section.
+    """
+    if HYBRID_V2 is None:
+        return None
+    exif_vec = extract_exif_features(img_path)
+    exif_tensor = torch.from_numpy(exif_vec).unsqueeze(0).to(DEVICE)
+    tensor = TRANSFORM(pil_img).unsqueeze(0).to(DEVICE)
+    with torch.no_grad():
+        out = HYBRID_V2(tensor, exif_tensor)
+        probs = torch.softmax(out, dim=1)[0]
+    fp = float(probs[1])
+    exif_summary = {
+        name: float(val) for name, val in zip(EXIF_FEATURE_NAMES, exif_vec)
+    }
+    return {
+        'predicted'   : 'FORGED' if fp > 0.5 else 'AUTHENTIC',
+        'forged_prob' : round(fp * 100, 1),
+        'has_exif'    : bool(exif_summary['has_exif']),
+        'flagged_editor_software': bool(exif_summary['software_is_editor']),
+        'exif_features': exif_summary,
+    }
+
 def test_all_platforms(pil_img):
     results = {}
     model_labels = {'resnet':'ResNet50','efficientnet':'EfficientNet-B4','hybrid':'Hybrid (Ours)'}
@@ -263,6 +308,10 @@ def index():
 def results_page():
     return render_template('results.html')
 
+@app.route('/camera')
+def camera_page():
+    return render_template('camera.html')
+
 @app.route('/analyze', methods=['POST'])
 def analyze():
     if 'image' not in request.files:
@@ -281,7 +330,7 @@ def analyze():
         return jsonify({'error': 'Model not loaded'}), 500
     main_result['img_url'] = img_url
     model_comparison = {}
-    for mkey, mname in [('resnet','ResNet50'),('efficientnet','EfficientNet-B4'),('hybrid','Hybrid (Ours)')]:
+    for mkey, mname in {'resnet':'ResNet50','efficientnet':'EfficientNet-B4','hybrid':'Hybrid (Ours)'}.items():
         r = predict(mkey, pil_img)
         if r:
             model_comparison[mname] = {
@@ -291,6 +340,14 @@ def analyze():
             }
     main_result['model_comparison'] = model_comparison
     main_result['platform_results'] = test_all_platforms(pil_img)
+
+    exif_result = predict_with_exif(pil_img, img_path)
+    if exif_result:
+        main_result['exif_analysis'] = exif_result
+    else:
+        main_result['exif_analysis'] = {'available': False,
+            'note': 'EXIF-aware model not yet trained/deployed (Phase 2)'}
+
     return jsonify(main_result)
 
 if __name__ == '__main__':

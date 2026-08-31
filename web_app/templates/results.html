@@ -58,6 +58,18 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .detected{color:#22c55e;font-weight:600}
 .missed{color:#ef4444;font-weight:600}
 .hint{font-size:0.75rem;color:var(--muted);margin-top:4px;}
+.exif-top{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
+.exif-badge{padding:8px 16px;border-radius:10px;font-size:0.82rem;font-weight:600;font-family:'JetBrains Mono',monospace;display:flex;align-items:center;gap:8px;}
+.exif-badge.on{background:rgba(34,197,94,0.12);color:#22c55e;border:1px solid rgba(34,197,94,0.3);}
+.exif-badge.off{background:rgba(100,116,139,0.12);color:var(--muted);border:1px solid var(--border);}
+.exif-badge.flag{background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3);}
+.exif-verdict{margin-left:auto;padding:8px 16px;border-radius:10px;font-size:0.82rem;font-weight:700;font-family:'JetBrains Mono',monospace;}
+.exif-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+@media(max-width:700px){.exif-grid{grid-template-columns:repeat(2,1fr)}}
+.exif-flag{background:rgba(59,130,246,0.04);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:0.75rem;display:flex;justify-content:space-between;align-items:center;gap:6px;}
+.exif-flag .yes{color:#22c55e;font-weight:700}
+.exif-flag .no{color:var(--muted);font-weight:700}
+.exif-unavailable{padding:24px;text-align:center;color:var(--muted);border:1px dashed var(--border);border-radius:12px;font-size:0.85rem;}
 </style>
 </head>
 <body>
@@ -150,6 +162,9 @@ function renderResults(d) {
       '<p class="hint">Red = suspicious regions · Blue = normal regions</p>'
     : '<div class="no-heatmap">Heatmap not available</div>';
 
+  // ── EXIF Metadata section (Phase 2) ──────────────────────
+  const exifHtml = buildExifSection(d.exif_analysis);
+
   // ── Render everything ────────────────────────────────────
   document.getElementById('content').innerHTML =
 
@@ -198,6 +213,9 @@ function renderResults(d) {
     '</div>' +
     '</div>' +
 
+    // EXIF Metadata card
+    exifHtml +
+
     // Platform testing
     '<div class="card">' +
     '<div class="card-header">🌐 Social Media Compression Test</div>' +
@@ -205,6 +223,57 @@ function renderResults(d) {
     'Image compressed through each platform then tested. Shows existing models fail — ours stays robust.' +
     '</p>' +
     '<div class="platform-grid">' + platformCards + '</div>' +
+    '</div>';
+}
+
+function buildExifSection(exif) {
+  const header = '<div class="card-header">🔍 EXIF Metadata Analysis</div>';
+
+  if (!exif || exif.available === false) {
+    return '<div class="card">' + header +
+      '<div class="exif-unavailable">' +
+      (exif && exif.note ? exif.note : 'EXIF-aware model not available for this analysis.') +
+      '</div></div>';
+  }
+
+  const hasExif   = !!exif.has_exif;
+  const flagged   = !!exif.flagged_editor_software;
+  const isForged  = exif.predicted === 'FORGED';
+  const verdictCol = isForged ? '#ef4444' : '#22c55e';
+  const f = exif.exif_features || {};
+
+  const metaBadge = hasExif
+    ? '<div class="exif-badge on">✓ Metadata Found</div>'
+    : '<div class="exif-badge off">— No Metadata (common on social media)</div>';
+
+  const editorBadge = flagged
+    ? '<div class="exif-badge flag">⚠ Editor Software Detected</div>'
+    : '';
+
+  const verdictBadge = '<div class="exif-verdict" style="background:' + verdictCol + '22;color:' + verdictCol + ';border:1px solid ' + verdictCol + '44">' +
+    'EXIF Model: ' + exif.predicted + ' (' + exif.forged_prob + '%)</div>';
+
+  function flagRow(label, val) {
+    const yes = val === 1 || val === 1.0;
+    return '<div class="exif-flag"><span>' + label + '</span><span class="' + (yes ? 'yes">Yes' : 'no">No') + '</span></div>';
+  }
+
+  const grid =
+    '<div class="exif-grid">' +
+    flagRow('Camera Make', f.has_camera_make) +
+    flagRow('Camera Model', f.has_camera_model) +
+    flagRow('GPS Location', f.has_gps) +
+    flagRow('Date Taken', f.has_datetime_original) +
+    flagRow('Software Tag', f.has_software_tag) +
+    flagRow('Date/Time Mismatch', f.datetime_mismatch) +
+    flagRow('Thumbnail', f.has_thumbnail) +
+    flagRow('Orientation Info', f.has_orientation) +
+    '</div>';
+
+  return '<div class="card">' + header +
+    '<div class="exif-top">' + metaBadge + editorBadge + verdictBadge + '</div>' +
+    grid +
+    '<p class="hint" style="margin-top:14px">EXIF-aware model (HybridModelV2) fuses camera/software metadata with spatial and frequency features for an independent verdict.</p>' +
     '</div>';
 }
 </script>
