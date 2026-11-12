@@ -8,18 +8,18 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#050810;
-  --bg2:#0a0f1e;
-  --card:#0d1425;
-  --border:#1a2540;
+  --bg:#f8fafc;
+  --bg2:#eef2f7;
+  --card:#ffffff;
+  --border:#e2e8f0;
   --accent:#3b82f6;
   --accent2:#06b6d4;
   --danger:#ef4444;
   --warn:#f59e0b;
   --safe:#22c55e;
-  --text:#e2e8f0;
+  --text:#0f172a;
   --muted:#64748b;
-  --glow:rgba(59,130,246,0.15);
+  --glow:rgba(59,130,246,0.12);
 }
 html{scroll-behavior:smooth}
 body{
@@ -57,7 +57,7 @@ nav{
   position:fixed;top:0;left:0;right:0;z-index:100;
   padding:20px 40px;
   display:flex;align-items:center;justify-content:space-between;
-  background:rgba(5,8,16,0.8);
+  background:rgba(248,250,252,0.8);
   backdrop-filter:blur(20px);
   border-bottom:1px solid var(--border);
 }
@@ -109,7 +109,7 @@ h1{
   letter-spacing:-2px;margin-bottom:12px;
 }
 .grad{
-  background:linear-gradient(135deg,#fff 0%,var(--accent) 50%,var(--accent2) 100%);
+  background:linear-gradient(135deg,var(--text) 0%,var(--accent) 50%,var(--accent2) 100%);
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;
 }
 .sub{
@@ -330,7 +330,7 @@ footer{
 /* ── Results overlay ── */
 #resultsOverlay{
   display:none;position:fixed;inset:0;z-index:200;
-  background:rgba(5,8,16,0.95);backdrop-filter:blur(20px);
+  background:rgba(248,250,252,0.95);backdrop-filter:blur(20px);
   overflow-y:auto;
 }
 </style>
@@ -348,7 +348,7 @@ footer{
     ForensicAI
   </div>
   <div class="nav-badges">
-    <span class="badge badge-blue">DEEP LEARNING</span>
+    <a href="/batch" class="badge badge-blue" style="text-decoration:none;cursor:pointer;">📦 BATCH MODE</a>
     <span class="badge badge-cyan">SOCIAL MEDIA AWARE</span>
   </div>
 </nav>

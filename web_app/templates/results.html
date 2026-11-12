@@ -8,10 +8,10 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#050810;--card:#0d1425;
-  --border:#1a2540;--accent:#3b82f6;--accent2:#06b6d4;
+  --bg:#f8fafc;--card:#ffffff;
+  --border:#e2e8f0;--accent:#3b82f6;--accent2:#06b6d4;
   --danger:#ef4444;--warn:#f59e0b;--safe:#22c55e;
-  --text:#e2e8f0;--muted:#64748b;
+  --text:#0f172a;--muted:#64748b;
 }
 body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:40px 20px;}
 body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(59,130,246,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,0.03) 1px,transparent 1px);background-size:50px 50px;pointer-events:none;z-index:0;}
@@ -42,7 +42,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .fill-safe{background:linear-gradient(90deg,#22c55e,#10b981)}
 .model-table{width:100%;border-collapse:collapse}
 .model-table th{text-align:left;padding:10px 14px;font-size:0.7rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace;}
-.model-table td{padding:12px 14px;border-bottom:1px solid rgba(26,37,64,0.5);font-size:0.88rem}
+.model-table td{padding:12px 14px;border-bottom:1px solid rgba(226,232,240,0.8);font-size:0.88rem}
 .model-table tr:last-child td{border-bottom:none}
 .model-table tr.highlight td{background:rgba(59,130,246,0.05)}
 .tag{display:inline-block;padding:3px 10px;border-radius:6px;font-size:0.7rem;font-weight:600;font-family:'JetBrains Mono',monospace;}
@@ -53,10 +53,12 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 @media(max-width:600px){.platform-grid{grid-template-columns:1fr}}
 .platform-card{background:rgba(59,130,246,0.04);border:1px solid var(--border);border-radius:14px;padding:16px;}
 .platform-name{font-weight:600;font-size:0.9rem;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
-.platform-row{display:flex;justify-content:space-between;align-items:center;font-size:0.78rem;color:var(--muted);margin-bottom:6px;padding:4px 0;border-bottom:1px solid rgba(26,37,64,0.4);}
+.platform-row{display:flex;justify-content:space-between;align-items:center;font-size:0.78rem;color:var(--muted);margin-bottom:6px;padding:4px 0;border-bottom:1px solid rgba(226,232,240,0.8);}
 .platform-row:last-child{border-bottom:none;margin-bottom:0}
-.detected{color:#22c55e;font-weight:600}
-.missed{color:#ef4444;font-weight:600}
+.platform-verdict{font-weight:600}
+.flipped{color:#f59e0b}
+.consistent-forged{color:#ef4444}
+.consistent-authentic{color:#22c55e}
 .hint{font-size:0.75rem;color:var(--muted);margin-top:4px;}
 .exif-top{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
 .exif-badge{padding:8px 16px;border-radius:10px;font-size:0.82rem;font-weight:600;font-family:'JetBrains Mono',monospace;display:flex;align-items:center;gap:8px;}
@@ -131,6 +133,15 @@ function renderResults(d) {
     hybrid      : 'Hybrid '
   };
 
+  // Maps platform_results' short key to model_comparison's name, so each
+  // model's ORIGINAL (pre-compression) verdict can be compared with its
+  // verdict after each platform's compression.
+  const mkeyToCompName = {
+    resnet      : 'ResNet50',
+    efficientnet: 'EfficientNet-B4',
+    hybrid      : 'Hybrid (Ours)'
+  };
+
   let platformCards = '';
   const platResults = d.platform_results || {};
   Object.keys(platResults).forEach(function(platform) {
@@ -139,13 +150,16 @@ function renderResults(d) {
     Object.keys(models).forEach(function(mkey) {
       const r       = models[mkey];
       const label   = modelDisplay[mkey] || mkey;
-      const detected = r.predicted === 'FORGED';
-      const cls     = detected ? 'detected' : 'missed';
-      const symbol  = detected ? '✓ Detected' : '✗ Missed';
+      const original = modelComp[mkeyToCompName[mkey]];
+      const before   = original ? original.predicted : '?';
+      const after    = r.predicted;
+      const changed  = original && before !== after;
+      const cls  = changed ? 'flipped' : (after === 'FORGED' ? 'consistent-forged' : 'consistent-authentic');
+      const text = changed ? (before + ' → ' + after + ' (changed)') : (after + ' (unchanged)');
       rows +=
         '<div class="platform-row">' +
         '<span>' + label + '</span>' +
-        '<span class="' + cls + '">' + symbol + ' ' + r.confidence + '%</span>' +
+        '<span class="platform-verdict ' + cls + '">' + text + ' · ' + r.confidence + '%</span>' +
         '</div>';
     });
     const iconLabel = platformIcons[platform] || platform;
@@ -220,7 +234,7 @@ function renderResults(d) {
     '<div class="card">' +
     '<div class="card-header">🌐 Social Media Compression Test</div>' +
     '<p style="font-size:0.82rem;color:var(--muted);margin-bottom:16px">' +
-    'Image compressed through each platform then tested. Shows existing models fail — ours stays robust.' +
+    'Your image is compressed the way each platform would, then every model re-checks it. Each row shows the verdict on the original image versus after compression, plus the confidence in the new verdict.' +
     '</p>' +
     '<div class="platform-grid">' + platformCards + '</div>' +
     '</div>';
@@ -251,7 +265,7 @@ function buildExifSection(exif) {
     : '';
 
   const verdictBadge = '<div class="exif-verdict" style="background:' + verdictCol + '22;color:' + verdictCol + ';border:1px solid ' + verdictCol + '44">' +
-    'EXIF Model: ' + exif.predicted + ' (' + exif.forged_prob + '%)</div>';
+    'EXIF Model: ' + exif.predicted + ' (' + exif.confidence + '%)</div>';
 
   function flagRow(label, val) {
     const yes = val === 1 || val === 1.0;
