@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Batch Analysis — ForensicAI</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#f8fafc;--bg2:#eef2f7;--card:#ffffff;
+  --border:#e2e8f0;--accent:#3b82f6;--accent2:#06b6d4;
+  --danger:#ef4444;--warn:#f59e0b;--safe:#22c55e;
+  --text:#0f172a;--muted:#64748b;--glow:rgba(59,130,246,0.12);
+}
+body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:40px 20px 80px;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(59,130,246,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,0.03) 1px,transparent 1px);background-size:50px 50px;pointer-events:none;z-index:0;}
+.container{max-width:1200px;margin:0 auto;position:relative;z-index:1;}
+.back-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:10px;background:var(--card);border:1px solid var(--border);color:var(--muted);font-size:0.85rem;cursor:pointer;margin-bottom:28px;transition:all 0.2s;text-decoration:none;font-family:'Space Grotesk',sans-serif;}
+.back-btn:hover{color:var(--text);border-color:var(--accent)}
+.page-title{font-size:1.9rem;font-weight:700;letter-spacing:-1px;margin-bottom:6px;}
+.page-sub{color:var(--muted);font-size:0.92rem;margin-bottom:32px;max-width:640px;line-height:1.6;}
+
+/* ── Upload zone ── */
+.upload-zone{
+  border:2px dashed var(--border);border-radius:20px;
+  padding:48px 32px;background:var(--card);
+  cursor:pointer;transition:all 0.3s ease;text-align:center;margin-bottom:16px;
+}
+.upload-zone:hover{border-color:var(--accent);transform:translateY(-2px)}
+.upload-zone.dragover{border-color:var(--accent);background:rgba(59,130,246,0.05);transform:scale(1.01)}
+.upload-icon{font-size:2.4rem;margin-bottom:12px;}
+.upload-title{font-size:1.15rem;font-weight:600;margin-bottom:6px;}
+.upload-sub{color:var(--muted);font-size:0.85rem;margin-bottom:20px;}
+.upload-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+.btn{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:12px 24px;border-radius:10px;font-weight:600;font-size:0.88rem;
+  border:none;cursor:pointer;transition:all 0.2s;font-family:'Space Grotesk',sans-serif;
+}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(59,130,246,0.4)}
+.btn-primary:disabled{opacity:0.5;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text);}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+.file-types{margin-top:16px;color:var(--muted);font-size:0.72rem;font-family:'JetBrains Mono',monospace;}
+#fileInput,#zipInput{display:none}
+
+/* ── Queue ── */
+#queueSection{display:none;margin-bottom:28px}
+.queue-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;}
+.queue-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+.queue-title{font-weight:600;font-size:0.95rem;}
+.queue-list{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;max-height:220px;overflow-y:auto;}
+.queue-item{
+  display:flex;align-items:center;gap:8px;
+  background:rgba(59,130,246,0.06);border:1px solid var(--border);
+  border-radius:8px;padding:6px 10px;font-size:0.78rem;
+}
+.queue-item .rm{cursor:pointer;color:var(--muted);font-weight:700;}
+.queue-item .rm:hover{color:var(--danger)}
+.queue-footer{display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+
+/* ── Loading ── */
+#loadingSection{display:none;margin-bottom:28px;text-align:center;}
+.loading-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:40px;}
+.spinner{width:44px;height:44px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px;}
+.spinner.small{width:16px;height:16px;border-width:2px;margin:0;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{color:var(--muted);font-size:0.9rem}
+
+/* ── Summary bar ── */
+#summaryBar{display:none;margin-bottom:20px;}
+.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+@media(max-width:700px){.summary-grid{grid-template-columns:repeat(2,1fr)}}
+.summary-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;text-align:center;}
+.summary-num{font-size:1.6rem;font-weight:700;font-family:'JetBrains Mono',monospace;}
+.summary-label{font-size:0.72rem;color:var(--muted);letter-spacing:1px;margin-top:4px;text-transform:uppercase;}
+.summary-num.danger{color:var(--danger)}
+.summary-num.safe{color:var(--safe)}
+
+/* ── Results grid ── */
+#resultsSection{display:none;}
+.results-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+.results-title{font-weight:600;font-size:1rem;}
+.results-actions{display:flex;gap:10px;}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;}
+.rcard{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;transition:border-color 0.2s;}
+.rcard:hover{border-color:rgba(59,130,246,0.3)}
+.rcard img{width:100%;height:150px;object-fit:cover;display:block;background:#000;}
+.rcard-body{padding:14px;}
+.rcard-name{font-size:0.8rem;font-weight:600;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rcard-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.tag{display:inline-block;padding:3px 10px;border-radius:6px;font-size:0.68rem;font-weight:700;font-family:'JetBrains Mono',monospace;letter-spacing:0.5px;}
+.tag-forged{background:rgba(239,68,68,0.15);color:#ef4444}
+.tag-auth{background:rgba(34,197,94,0.15);color:#22c55e}
+.rcard-conf{font-family:'JetBrains Mono',monospace;font-size:0.78rem;color:var(--muted);}
+.trust-pill{padding:3px 10px;border-radius:20px;font-size:0.65rem;font-weight:700;font-family:'JetBrains Mono',monospace;}
+.full-btn{
+  width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);
+  background:transparent;color:var(--text);font-size:0.78rem;font-weight:600;
+  cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:6px;
+  font-family:'Space Grotesk',sans-serif;
+}
+.full-btn:hover{border-color:var(--accent);color:var(--accent)}
+.full-btn:disabled{opacity:0.6;cursor:not-allowed}
+.skip-note{color:var(--warn);font-size:0.78rem;margin-top:10px;}
+
+/* ── Modal (full analysis detail) ── */
+#modalOverlay{
+  display:none;position:fixed;inset:0;z-index:300;
+  background:rgba(248,250,252,0.92);backdrop-filter:blur(16px);
+  overflow-y:auto;padding:40px 20px;
+}
+.modal-box{max-width:900px;margin:0 auto;background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:32px;position:relative;}
+.modal-close{position:absolute;top:20px;right:20px;background:var(--card);border:1px solid var(--border);color:var(--text);width:36px;height:36px;border-radius:10px;cursor:pointer;font-size:1rem;}
+.modal-close:hover{border-color:var(--accent)}
+.verdict{border-radius:16px;padding:24px;margin-bottom:20px;}
+.verdict.forged{background:linear-gradient(135deg,rgba(239,68,68,0.15),rgba(239,68,68,0.05));border:1px solid rgba(239,68,68,0.3);}
+.verdict.authentic{background:linear-gradient(135deg,rgba(34,197,94,0.15),rgba(34,197,94,0.05));border:1px solid rgba(34,197,94,0.3);}
+.verdict-inner{display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+.verdict-icon{font-size:2.6rem;}
+.verdict-result{font-size:1.6rem;font-weight:800;}
+.verdict-conf{color:var(--muted);font-size:0.9rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+@media(max-width:700px){.two-col{grid-template-columns:1fr}}
+.mcard{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;}
+.mcard-header{font-size:0.68rem;letter-spacing:1.5px;text-transform:uppercase;font-family:'JetBrains Mono',monospace;color:var(--accent);margin-bottom:12px;}
+.mcard img{width:100%;border-radius:10px;display:block}
+.model-table{width:100%;border-collapse:collapse;font-size:0.85rem;}
+.model-table th{text-align:left;padding:8px 10px;font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);}
+.model-table td{padding:9px 10px;border-bottom:1px solid rgba(226,232,240,0.8);}
+.platform-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+@media(max-width:600px){.platform-grid{grid-template-columns:1fr}}
+.platform-card{background:rgba(59,130,246,0.04);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:0.78rem;}
+.platform-name{font-weight:600;margin-bottom:6px;}
+.no-heatmap{height:150px;display:flex;align-items:center;justify-content:center;color:var(--muted);border:1px dashed var(--border);border-radius:10px;font-size:0.8rem;}
+
+/* ── Print report (hidden on screen, shown only in print) ── */
+#printReport{display:none;}
+@media print{
+  body *{visibility:hidden;}
+  #printReport, #printReport *{visibility:visible;}
+  #printReport{display:block;position:absolute;top:0;left:0;width:100%;color:#000;background:#fff;padding:20px;}
+  #printReport table{width:100%;border-collapse:collapse;}
+  #printReport th,#printReport td{border:1px solid #999;padding:6px 10px;text-align:left;font-size:12px;}
+}
+
+.empty-state{text-align:center;padding:60px 20px;color:var(--muted);}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <a href="/" class="back-btn">← Back to Home</a>
+  <div class="page-title">Batch Analysis</div>
+  <div class="page-sub">
+    Upload multiple images — drag &amp; drop, pick files, or upload a .zip. Every image
+    gets a quick Hybrid-model verdict. Click <b>Full Analyze</b> on any card to run the
+    complete pipeline (all 3 models, Grad-CAM heatmap, platform compression test, EXIF).
+  </div>
+
+  <!-- Upload zone -->
+  <div class="upload-zone" id="dropZone">
+    <div class="upload-icon">📦</div>
+    <div class="upload-title">Drop images or a .zip here</div>
+    <div class="upload-sub">or use the buttons below</div>
+    <div class="upload-actions">
+      <button class="btn btn-primary" id="pickImagesBtn" type="button">🖼️ Choose Images</button>
+      <button class="btn btn-ghost" id="pickZipBtn" type="button">🗂️ Choose ZIP</button>
+    </div>
+    <div class="file-types">JPG · PNG · BMP · WEBP · or a .ZIP containing them — up to 100 images per batch</div>
+    <input type="file" id="fileInput" accept="image/*" multiple>
+    <input type="file" id="zipInput" accept=".zip">
+  </div>
+
+  <!-- Queue (pre-submit) -->
+  <div id="queueSection">
+    <div class="queue-card">
+      <div class="queue-header">
+        <div class="queue-title" id="queueTitle">0 files queued</div>
+        <button class="btn btn-ghost" id="clearQueueBtn" type="button" style="padding:6px 14px;font-size:0.78rem;">Clear all</button>
+      </div>
+      <div class="queue-list" id="queueList"></div>
+      <div class="queue-footer">
+        <button class="btn btn-primary" id="runBatchBtn" type="button">⚡ Run Batch Analysis</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div id="loadingSection">
+    <div class="loading-card">
+      <div class="spinner"></div>
+      <div class="loading-text" id="loadingText">Analyzing images...</div>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div id="summaryBar">
+    <div class="summary-grid">
+      <div class="summary-card"><div class="summary-num" id="sumTotal">0</div><div class="summary-label">Images</div></div>
+      <div class="summary-card"><div class="summary-num danger" id="sumForged">0</div><div class="summary-label">Flagged Forged</div></div>
+      <div class="summary-card"><div class="summary-num safe" id="sumAuth">0</div><div class="summary-label">Authentic</div></div>
+      <div class="summary-card"><div class="summary-num" id="sumAvg">0%</div><div class="summary-label">Avg Forged Prob</div></div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div id="resultsSection">
+    <div class="results-toolbar">
+      <div class="results-title">Quick Results</div>
+      <div class="results-actions">
+        <button class="btn btn-ghost" id="exportCsvBtn" type="button">⬇ Export CSV</button>
+        <button class="btn btn-ghost" id="printBtn" type="button">🖨 Print / Save PDF</button>
+      </div>
+    </div>
+    <div id="skipNote" class="skip-note" style="display:none"></div>
+    <div class="grid" id="resultsGrid"></div>
+  </div>
+</div>
+
+<!-- Full-analysis modal -->
+<div id="modalOverlay">
+  <div class="modal-box">
+    <button class="modal-close" id="modalCloseBtn">✕</button>
+    <div id="modalContent">Loading...</div>
+  </div>
+</div>
+
+<!-- Printable report (only visible via @media print) -->
+<div id="printReport">
+  <h2>ForensicAI — Batch Analysis Report</h2>
+  <p id="printMeta"></p>
+  <table>
+    <thead><tr><th>Filename</th><th>Prediction</th><th>Forged %</th><th>Authentic %</th><th>Trust</th></tr></thead>
+    <tbody id="printTableBody"></tbody>
+  </table>
+</div>
+
+<script src="{{ url_for('static', filename='js/batch.js') }}"></script>
+</body>
+</html>

@@ -21,6 +21,8 @@ from werkzeug.utils import secure_filename
 
 from exif_utils import extract_exif_features, EXIF_FEATURE_NAMES
 from models_v2 import HybridModelV2
+from batch_utils import (is_allowed_image, extract_images_from_zip, new_image_id,
+                          BatchStore, MAX_BATCH_IMAGES)
 
 BASE_DIR   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODELS_DIR = os.path.join(BASE_DIR, 'saved_models')
@@ -158,6 +160,8 @@ MODELS = {
 HYBRID_V2 = load_hybrid_v2()   # None until you drop in hybrid_model_v2_exif.pth
 print('All models loaded!')
 
+BATCHES = BatchStore()   # in-memory batch_id -> {image_id: {path, img_url, filename}}
+
 def jpeg_compress_pil(pil_img, quality):
     buf = io.BytesIO()
     pil_img.convert('RGB').save(buf, format='JPEG', quality=int(quality))
@@ -236,6 +240,9 @@ def predict(model_key, pil_img, generate_heatmap=False):
         'predicted'  : 'FORGED' if fp>0.5 else 'AUTHENTIC',
         'forged_prob': round(fp*100, 1),
         'auth_prob'  : round(ap*100, 1),
+        # Confidence IN THE PREDICTED LABEL (always >=50%, matches 'predicted').
+        # forged_prob/auth_prob stay as-is for the headline verdict card.
+        'confidence' : round((fp if fp > 0.5 else ap) * 100, 1),
         'trust'      : trust,
         'trust_color': color,
         'heatmap_url': None,
@@ -271,16 +278,49 @@ def predict_with_exif(pil_img, img_path):
         out = HYBRID_V2(tensor, exif_tensor)
         probs = torch.softmax(out, dim=1)[0]
     fp = float(probs[1])
+    ap = 1.0 - fp
     exif_summary = {
         name: float(val) for name, val in zip(EXIF_FEATURE_NAMES, exif_vec)
     }
     return {
         'predicted'   : 'FORGED' if fp > 0.5 else 'AUTHENTIC',
         'forged_prob' : round(fp * 100, 1),
+        'confidence'  : round((fp if fp > 0.5 else ap) * 100, 1),
         'has_exif'    : bool(exif_summary['has_exif']),
         'flagged_editor_software': bool(exif_summary['software_is_editor']),
         'exif_features': exif_summary,
     }
+
+def run_full_analysis(pil_img, img_path, img_url):
+    """
+    The complete per-image pipeline: Hybrid model + Grad-CAM, 3-model
+    comparison, 4-platform compression test, EXIF branch. Shared by the
+    single-image /analyze route and the batch /batch_full route so both
+    produce byte-identical result shapes.
+    """
+    main_result = predict('hybrid', pil_img, generate_heatmap=True)
+    if main_result is None:
+        return None
+    main_result['img_url'] = img_url
+    model_comparison = {}
+    for mkey, mname in {'resnet':'ResNet50','efficientnet':'EfficientNet-B4','hybrid':'Hybrid (Ours)'}.items():
+        r = predict(mkey, pil_img)
+        if r:
+            model_comparison[mname] = {
+                'predicted' : r['predicted'],
+                'confidence': r['confidence'],
+                'trust'     : r['trust'],
+            }
+    main_result['model_comparison'] = model_comparison
+    main_result['platform_results'] = test_all_platforms(pil_img)
+
+    exif_result = predict_with_exif(pil_img, img_path)
+    if exif_result:
+        main_result['exif_analysis'] = exif_result
+    else:
+        main_result['exif_analysis'] = {'available': False,
+            'note': 'EXIF-aware model not yet trained/deployed (Phase 2)'}
+    return main_result
 
 def test_all_platforms(pil_img):
     results = {}
@@ -295,7 +335,7 @@ def test_all_platforms(pil_img):
                 pres[mkey] = {
                     'name'      : mname,
                     'predicted' : r['predicted'],
-                    'confidence': r['forged_prob'],
+                    'confidence': r['confidence'],
                 }
         results[platform] = pres
     return results
@@ -307,10 +347,6 @@ def index():
 @app.route('/results')
 def results_page():
     return render_template('results.html')
-
-@app.route('/camera')
-def camera_page():
-    return render_template('camera.html')
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
@@ -325,29 +361,108 @@ def analyze():
     f.save(img_path)
     pil_img  = Image.open(img_path).convert('RGB')
     img_url  = url_for('static', filename=f'uploads/{fname}')
-    main_result = predict('hybrid', pil_img, generate_heatmap=True)
+    main_result = run_full_analysis(pil_img, img_path, img_url)
     if main_result is None:
         return jsonify({'error': 'Model not loaded'}), 500
-    main_result['img_url'] = img_url
-    model_comparison = {}
-    for mkey, mname in {'resnet':'ResNet50','efficientnet':'EfficientNet-B4','hybrid':'Hybrid (Ours)'}.items():
-        r = predict(mkey, pil_img)
-        if r:
-            model_comparison[mname] = {
-                'predicted' : r['predicted'],
-                'confidence': r['forged_prob'],
-                'trust'     : r['trust'],
-            }
-    main_result['model_comparison'] = model_comparison
-    main_result['platform_results'] = test_all_platforms(pil_img)
+    return jsonify(main_result)
 
-    exif_result = predict_with_exif(pil_img, img_path)
-    if exif_result:
-        main_result['exif_analysis'] = exif_result
-    else:
-        main_result['exif_analysis'] = {'available': False,
-            'note': 'EXIF-aware model not yet trained/deployed (Phase 2)'}
+# ─────────────────────────────────────────────────────────────
+# Batch Analysis
+# ─────────────────────────────────────────────────────────────
+@app.route('/batch')
+def batch_page():
+    return render_template('batch.html')
 
+@app.route('/batch_analyze', methods=['POST'])
+def batch_analyze():
+    """
+    Quick pass over a whole batch: Hybrid-model-only prediction, no
+    heatmap / model comparison / platform test (those are ~16x more
+    forward passes per image — too slow to run on every image in a
+    batch by default). Accepts any mix of:
+      - multiple files under the 'images' field (drag-drop / multi-select)
+      - a single .zip under the 'zipfile' field
+    Individual images can be re-run through the full pipeline afterwards
+    via /batch_full.
+    """
+    incoming = []  # list of (filename, bytes)
+
+    for f in request.files.getlist('images'):
+        if f and f.filename and is_allowed_image(f.filename):
+            incoming.append((secure_filename(f.filename), f.read()))
+
+    zip_file = request.files.get('zipfile')
+    if zip_file and zip_file.filename:
+        try:
+            zip_images = extract_images_from_zip(zip_file)
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        incoming.extend((secure_filename(n), b) for n, b in zip_images)
+
+    if not incoming:
+        return jsonify({'error': 'No valid images found (jpg/jpeg/png/bmp/webp only).'}), 400
+
+    truncated = len(incoming) > MAX_BATCH_IMAGES
+    incoming = incoming[:MAX_BATCH_IMAGES]
+
+    batch_id = BATCHES.create_batch()
+    results  = []
+    skipped  = []
+
+    for orig_name, raw_bytes in incoming:
+        ext      = os.path.splitext(orig_name)[1].lower()
+        image_id = new_image_id()
+        fname    = f'batch_{batch_id}_{image_id}{ext}'
+        img_path = os.path.join(UPLOAD_DIR, fname)
+        with open(img_path, 'wb') as out:
+            out.write(raw_bytes)
+        try:
+            pil_img = Image.open(img_path).convert('RGB')
+        except Exception:
+            skipped.append(orig_name)   # corrupt / unreadable — skip, don't fail the whole batch
+            os.remove(img_path)
+            continue
+
+        img_url = url_for('static', filename=f'uploads/{fname}')
+        r = predict('hybrid', pil_img, generate_heatmap=False)
+        if r is None:
+            return jsonify({'error': 'Model not loaded'}), 500
+
+        BATCHES.add_image(batch_id, image_id, {
+            'path'    : img_path,
+            'img_url' : img_url,
+            'filename': orig_name,
+        })
+        results.append({
+            'image_id'   : image_id,
+            'filename'   : orig_name,
+            'img_url'    : img_url,
+            'predicted'  : r['predicted'],
+            'forged_prob': r['forged_prob'],
+            'auth_prob'  : r['auth_prob'],
+            'trust'      : r['trust'],
+            'trust_color': r['trust_color'],
+        })
+
+    return jsonify({
+        'batch_id' : batch_id,
+        'count'    : len(results),
+        'results'  : results,
+        'skipped'  : skipped,
+        'truncated': truncated,
+    })
+
+@app.route('/batch_full/<batch_id>/<image_id>', methods=['POST'])
+def batch_full(batch_id, image_id):
+    """Run the full pipeline (all 3 models + heatmap + platform test + EXIF) on one image already in a batch."""
+    rec = BATCHES.get_image(batch_id, image_id)
+    if rec is None:
+        return jsonify({'error': 'Image not found — the batch may have expired (server restarted).'}), 404
+    pil_img = Image.open(rec['path']).convert('RGB')
+    main_result = run_full_analysis(pil_img, rec['path'], rec['img_url'])
+    if main_result is None:
+        return jsonify({'error': 'Model not loaded'}), 500
+    main_result['filename'] = rec['filename']
     return jsonify(main_result)
 
 if __name__ == '__main__':
