@@ -1,9 +1,8 @@
-# Image Forgery Detection in Social Media Images Using Deep Learning
+# Image Forgery Detection in Social Media Images Using Deep Learning Techniques
 
-> **Major Capstone Project — Phase 1 (Semester 6)**
-> Nitte Meenakshi Institute of Technology | VTU | Academic Year 2025–26
+Nitte Meenakshi Institute of Technology | VTU
 
-A robust, explainable hybrid deep learning system that detects forged images specifically under real-world **social media conditions** — where images are automatically compressed, resized, and filtered by platforms like Instagram, Facebook, WhatsApp, and Twitter.
+A robust and explainable hybrid deep learning framework for detecting manipulated images under real-world **social media conditions**, where platforms such as Facebook, Instagram, WhatsApp and Twitter automatically compress, resize and filter every uploaded image. The system combines three forensic cues (spatial features, frequency-domain features and EXIF metadata) and explains each decision with Grad-CAM heatmaps and a confidence-based trust score.
 
 ---
 
@@ -25,13 +24,9 @@ A robust, explainable hybrid deep learning system that detects forged images spe
 - [Project Overview](#project-overview)
 - [Key Features](#key-features)
 - [System Architecture](#system-architecture)
-- [Dataset Setup](#dataset-setup)
+- [Datasets](#datasets)
 - [Installation](#installation)
 - [Usage](#usage)
-  - [1. Preprocessing](#1-preprocessing)
-  - [2. Training](#2-training)
-  - [3. Evaluation](#3-evaluation)
-  - [4. Running the Web App](#4-running-the-web-app)
 - [Models](#models)
 - [Results](#results)
 - [Project Structure](#project-structure)
@@ -42,24 +37,25 @@ A robust, explainable hybrid deep learning system that detects forged images spe
 
 ## Project Overview
 
-Most image forgery detection systems are trained on clean benchmark datasets and fail when applied to real-world social media images — because platforms automatically compress, resize, and filter every uploaded image, destroying conventional forensic traces.
+Detectors that perform well on standard benchmarks often lose accuracy once an image has been compressed or altered by a platform. Platforms routinely compress, resize and filter uploads, and every one of these steps can erase or distort forensic traces. Many current systems are trained mainly on clean benchmark data, give limited insight into their decisions, and seldom exploit forensic cues from different domains together.
 
-This project addresses that gap through three contributions:
+This project addresses these gaps through three contributions:
 
-1. **Social Media Simulation Pipeline** — replicates Facebook, Instagram, WhatsApp, and Twitter compression behaviour during training so the model learns to detect forgeries even after platform processing
-2. **Hybrid CNN Architecture** — fuses EfficientNet-B4 spatial features (1792-dim) with Laplacian frequency-domain features (256-dim) into a 2048-dim representation that captures manipulation artifacts invisible to spatial-only models
-3. **Explainable AI Output** — Grad-CAM heatmaps highlight the exact manipulated regions, and a three-tier trust scoring system (Low / Suspicious / High Risk) makes results actionable for non-technical users
+1. **Social Media Simulation Pipeline**: imitates the processing applied by Facebook, Instagram, WhatsApp and Twitter, and is used at both training and evaluation time.
+2. **Hybrid Model**: draws on three forensic cues: spatial features from EfficientNet-B4, Laplacian-filtered frequency-domain features (256-dimensional), and EXIF metadata.
+3. **Explainable Output**: Grad-CAM heatmaps show the regions that influenced each decision, and a confidence-based trust score (Low Risk / Suspicious / High Risk) adds an interpretable measure of reliability.
 
 ---
 
 ## Key Features
 
-- Upload any JPEG or PNG image via a Flask web interface
-- Classify images as **Authentic** or **Manipulated**
-- Generate a **confidence score** and **trust level** (Low Risk / Suspicious / High Risk)
-- Visualize manipulated regions via **Grad-CAM heatmap overlay**
-- Compare performance of all 3 models side-by-side
-- Robust against Facebook, Instagram, WhatsApp, and Twitter compression pipelines
+- Upload a single image or several images at once (including a ZIP archive) through a Flask web interface
+- Classify each image as **Authentic** or **Forged**, with a confidence score and trust level
+- Visualize influential regions with a **Grad-CAM heatmap overlay**
+- Compare ResNet50, EfficientNet-B4 and the Hybrid model on the same image
+- Re-test each image under Facebook, Instagram, WhatsApp and Twitter compression and see how each model's verdict changes
+- Inspect EXIF metadata and the metadata-aware model's verdict (EXIF is used as an additional source of evidence when it is available)
+- Batch mode for analyzing many images, with CSV export and a printable report
 
 ---
 
@@ -69,70 +65,75 @@ This project addresses that gap through three contributions:
 Input Image
      │
      ▼
-Image Preprocessing (resize 224×224, normalize)
+Preprocessing (resize 224×224, normalize)
      │
      ▼
 Social Media Simulation Pipeline
-(Facebook QF:71-95 | Instagram QF:70-85 | WhatsApp QF:50-80 | Twitter QF:80-90)
+ Facebook: resize >2048 px, enhancement, JPEG quality 71–95
+ Instagram: resize >1080 px, colour enhancement, JPEG quality 70–85
+ WhatsApp: resize >1600 px, JPEG quality 50–80, second pass with 40% probability
+ Twitter: resize >1200 px, JPEG quality 80–90
+ (during training each image is routed through one randomly chosen pipeline)
      │
-     ├──────────────────────────────────────┐
-     ▼                                      ▼
-EfficientNet-B4 Spatial Branch     Laplacian Frequency Branch
-   (1792-dim features)                  (256-dim features)
-     │                                      │
-     └──────────────┬───────────────────────┘
-                    ▼
-           Fused Feature Vector (2048-dim)
-                    │
-                    ▼
-         Classification Head
-        (Authentic / Manipulated)
-                    │
-          ┌─────────┴─────────┐
-          ▼                   ▼
-   Confidence Score      Grad-CAM Heatmap
-   + Trust Level         (suspicious regions)
-          │
-          ▼
-     Flask Web Interface
+     ├───────────────────────┬──────────────────────────┐
+     ▼                       ▼                          ▼
+EfficientNet-B4        Laplacian high-pass        EXIF metadata
+spatial branch         frequency branch (256-d)   branch (when available)
+     │                       │                          │
+     └───────────────────────┴──────────┬───────────────┘
+                                        ▼
+                               Feature fusion
+                                        │
+                                        ▼
+                    Classification head (Authentic / Forged)
+                                        │
+                      ┌─────────────────┴─────────────────┐
+                      ▼                                   ▼
+          Confidence score + trust level           Grad-CAM heatmap
+                      │
+                      ▼
+              Flask web interface
 ```
 
 ---
 
-## Dataset Setup
+## Datasets
 
-We use three publicly available benchmark datasets. **Do not commit dataset files to this repo** — download them from the official sources below.
+Four public datasets were used, totalling 15,386 images. Datasets are not included in this repository; download them from their official sources.
 
-| Dataset | Images | Forgery Types | Download |
-|---------|--------|--------------|----------|
-| CASIA v2.0 | 12,614 | Splicing, Copy-move | [Kaggle — CASIA v2](https://www.kaggle.com/datasets/sophatvathana/casia-dataset) |
-| Columbia Uncompressed | 363 | Splicing | [Columbia IFP Group](https://www.ee.columbia.edu/ln/dvmm/downloads/authsplcuncmp/) |
-| NIST16 | 564 | Multiple | [NIST MFC Dataset](https://www.nist.gov/system/files/documents/2019/01/08/mfc2018-evalplan-2018-10-04-vs2.pdf) |
+| Dataset | Images | Format | Forgery Type / Notes |
+|---------|--------|--------|----------------------|
+| CASIA v2.0 | 12,614 (7,491 authentic, 5,123 forged) | JPG / TIF | Splicing, copy-move |
+| Columbia Uncompressed Color | 363 | TIF | Uncompressed, high-quality splicing images |
+| Columbia Gray (ImSpliceDataset) | 1,845 | BMP | 128×128 grayscale splicing |
+| NIST16 | 564 | JPG | Government-grade forensics challenge set (forged images) |
+| **Total** | **15,386** | Mixed | All four combined for training and evaluation |
 
-After downloading, place them as:
+The data was split into 10,769 training, 2,308 validation and 2,309 test images, and all images are resized to 224×224 before being given to the models.
+
+Download links: [CASIA v2 (Kaggle)](https://www.kaggle.com/datasets/sophatvathana/casia-dataset) · [Columbia IFP Group](https://www.ee.columbia.edu/ln/dvmm/downloads/authsplcuncmp/) · [NIST MFC](https://www.nist.gov/system/files/documents/2019/01/08/mfc2018-evalplan-2018-10-04-vs2.pdf)
+
+Expected folder layout:
 
 ```
 dataset/
 ├── CASIA/
-│   ├── Au/          ← authentic images
-│   └── Tp/          ← tampered images
+│   ├── Au/                  ← authentic images
+│   └── Tp/                  ← forged images
 ├── Columbia/
-│   ├── authentic/
-│   └── tampered/
+│   ├── color/
+│   │   ├── 4cam_auth/
+│   │   └── 4cam_splc/
+│   └── gray/                ← Au-* and Sp-* folders
 └── NIST16/
-    └── ...
+    └── images/              ← forged images
 ```
 
 ---
 
 ## Installation
 
-### Prerequisites
-
-- Python 3.8+
-- CUDA-compatible GPU (recommended) or Google Colab
-
-### Steps
+**Prerequisites:** Python 3.8+ and a CUDA-compatible GPU (recommended).
 
 ```bash
 # 1. Clone the repository
@@ -148,45 +149,23 @@ venv\Scripts\activate           # Windows
 pip install -r requirements.txt
 ```
 
-### requirements.txt includes:
-```
-torch>=2.0.0
-torchvision>=0.15.0
-opencv-python>=4.8.0
-numpy>=1.24.0
-scikit-learn>=1.3.0
-matplotlib>=3.7.0
-seaborn>=0.12.0
-Pillow>=10.0.0
-flask>=3.0.0
-grad-cam>=1.4.8
-tqdm>=4.65.0
-pandas>=2.0.0
-```
-
 ---
 
 ## Usage
 
 ### 1. Preprocessing
 
-Prepare and split the dataset, and run the social media simulation pipeline:
-
 ```bash
-# Step 1: Prepare dataset (split into train/val/test)
+# Prepare dataset (split into train/val/test)
 python preprocessing/prepare_dataset.py
 
-# Step 2: Apply social media compression simulation
+# Apply social media compression simulation
 python preprocessing/simulate_compression.py
 ```
 
-Processed images will be saved to `dataset/processed/`.
-
----
+Processed images are saved to `dataset/processed/`.
 
 ### 2. Training
-
-Train all three models individually:
 
 ```bash
 # Model 1: ResNet50 baseline (clean images only)
@@ -195,31 +174,26 @@ python training/train_resnet.py
 # Model 2: EfficientNet-B4 (compression-aware)
 python training/train_efficientnet.py
 
-# Model 3: Hybrid Model — our main contribution
+# Model 3: Hybrid model (spatial + frequency)
 python training/train_hybrid.py
+
+# Model 3 with the EXIF metadata branch
+python training/train_hybrid_exif.py
 ```
 
-Trained model weights are saved to `saved_models/`.
-
-> **Google Colab**: Upload the repo and mount your Drive for dataset access. GPU runtime is strongly recommended — training ResNet50 takes ~45 mins, Hybrid ~90 mins on Colab T4.
-
----
+Trained weights are saved to `saved_models/`. A GPU is strongly recommended.
 
 ### 3. Evaluation
 
-Run evaluation on all 3 models across all test conditions:
-
 ```bash
-# Evaluate all models (clean + 4 platform conditions)
+# Evaluate all models on clean and the four social-media conditions
 python evaluation/evaluate_all.py
 
 # Generate comparison table
 python evaluation/generate_comparison.py
 ```
 
-Output comparison tables and plots are saved to `results/`.
-
----
+Outputs are saved to `evaluation/results/`.
 
 ### 4. Running the Web App
 
@@ -228,105 +202,110 @@ cd web_app
 python app.py
 ```
 
-Open your browser and go to `http://localhost:5000`
+Open `http://localhost:5000`.
 
-**What you can do in the web app:**
-1. Upload a JPEG or PNG image (max 10 MB)
-2. View the prediction: Authentic / Manipulated
-3. See the confidence score and trust level
-4. View the Grad-CAM heatmap highlighting suspicious regions
-5. Compare all 3 models on the same image
+- **Single image analysis** (`/`): prediction, confidence, trust level, Grad-CAM heatmap, 3-model comparison, EXIF analysis and the four-platform compression test
+- **Batch analysis** (`/batch`): upload many images and/or a ZIP (JPG, PNG, BMP, WEBP; up to 100 per batch). Every image gets a quick Hybrid-model verdict; click **Full Analyze** on any image for the complete analysis. Export results as CSV or print them as a PDF report.
+
+Model weights (`.pth`) are not stored in this repository. Place `resnet_baseline.pth`, `efficientnet_model.pth`, `hybrid_model.pth` and (optionally) `hybrid_model_v2_exif.pth` in `saved_models/`. If the EXIF-aware weights are absent, the EXIF panel is shown as unavailable.
 
 ---
 
 ## Models
 
-### Model 1 — ResNet50 (Baseline)
-- Pretrained on ImageNet, fine-tuned for forgery detection
-- Trained on clean images only
-- Parameters: ~24.5M
-- Val Accuracy: 80.7%
-- Purpose: Demonstrates failure of standard models on social media images
+| Model | Training data | Parameters | Validation accuracy |
+|-------|---------------|-----------:|--------------------:|
+| ResNet50 (baseline) | Clean images only, ImageNet-pretrained | 24,558,146 | 80.7% |
+| EfficientNet-B4 | Clean + social-media-compressed images, ImageNet-pretrained | 18,467,658 | 76.5% |
+| Hybrid (ours) | Clean + compressed, all four platform augmentations | n/a | n/a |
 
-### Model 2 — EfficientNet-B4 (Compression-Aware)
-- Pretrained on ImageNet, fine-tuned with social media augmentation
-- Trained on clean + compressed images
-- Parameters: ~18.4M
-- Val Accuracy: 76.5%
-- Purpose: Shows improved robustness over baseline
+The **Hybrid model** combines an EfficientNet-B4 spatial branch, a 256-dimensional frequency branch based on Laplacian high-pass filtering, and an EXIF branch containing the available metadata features. The branches are combined into the final representation used for classification.
 
-### Model 3 — Hybrid Model (Our Contribution)
-- EfficientNet-B4 spatial branch (1792-dim) + Laplacian frequency branch (256-dim)
-- Fused 2048-dim feature vector
-- Trained with all 4 platform simulations
-- Parameters: ~19.4M
-- Purpose: Best real-world performance; primary contribution of this project
+**Trust scoring:** the prediction confidence is mapped to three categories: Low Risk (0–0.3), Suspicious (0.3–0.7) and High Risk (0.7–1.0).
+
+**Grad-CAM:** in the heatmap, red areas indicate stronger influence on the prediction and blue areas lower influence.
 
 ---
 
 ## Results
 
-*(To be updated with final evaluation numbers after full training run)*
+Models were evaluated on clean test images and on the same images processed through the four social-media pipelines.
+
+**Accuracy (%) on clean and compressed test sets**
 
 | Model | Clean | Facebook | Instagram | WhatsApp | Twitter |
 |-------|-------|----------|-----------|----------|---------|
-| ResNet50 (Baseline) | 80.7% | — | — | — | — |
-| EfficientNet-B4 | 76.5% | — | — | — | — |
-| Hybrid Model (Ours) | — | — | — | — | — |
+| ResNet50 (Baseline) | 82.1 | 71.8 | 71.4 | 67.1 | 71.8 |
+| EfficientNet-B4 | 77.0 | 75.0 | 74.5 | 74.9 | 74.4 |
+| **Hybrid Model** | **92.2** | **89.3** | **90.5** | **90.7** | **91.4** |
 
-Grad-CAM heatmap examples are available in `results/`.
+**Classification performance**
+
+| Model | Precision | Recall | F1 | Accuracy |
+|-------|----------:|-------:|---:|---------:|
+| ResNet50 | 80.1 | 79.4 | 79.7 | 82.1 |
+| EfficientNet-B4 | 75.8 | 74.9 | 75.3 | 77.0 |
+| **Hybrid Model** | **91.8** | **91.2** | **91.5** | **92.2** |
+
+**Average accuracy drop under social-media compression**
+
+| Model | Average | Facebook | Instagram | WhatsApp | Twitter |
+|-------|--------:|---------:|----------:|---------:|--------:|
+| ResNet50 (Baseline) | 11.6% | 10.3% | 10.7% | 15.0% | 10.3% |
+| EfficientNet-B4 | 2.3% | 2.0% | 2.5% | 2.1% | 2.6% |
+| **Hybrid Model** | **≈1.7%** | 2.9% | 1.7% | 1.5% | 0.8% |
+
+ResNet50, trained only on clean images, shows the largest loss (up to 15.0% on WhatsApp-compressed images). Compression-aware training reduces the average drop to 2.3% for EfficientNet-B4, and the Hybrid model keeps the drop to about 1.7%.
 
 ---
 
 ## Project Structure
 
 ```
-forgery_detection/
+22CSP69_57-Image-Forgery-Detection/
 │
 ├── dataset/                    ← datasets go here (not committed)
-│   ├── CASIA/
-│   ├── Columbia/
-│   ├── NIST16/
 │   └── processed/              ← generated after preprocessing
 │
 ├── preprocessing/
+│   ├── prepare_dataset.py      ← dataset split and preparation
 │   ├── simulate_compression.py ← social media pipeline simulation
-│   └── prepare_dataset.py      ← dataset split and preparation
+│   └── dataset_loader.py
 │
 ├── models/
-│   ├── resnet_baseline.py      ← Model 1 architecture
-│   ├── efficientnet_model.py   ← Model 2 architecture
-│   └── hybrid_model.py         ← Model 3 architecture (our contribution)
+│   ├── resnet_baseline.py      ← Model 1
+│   ├── efficientnet_model.py   ← Model 2
+│   └── hybrid_model.py         ← Model 3 (spatial + frequency)
 │
 ├── training/
-│   ├── train_resnet.py         ← train Model 1
-│   ├── train_efficientnet.py   ← train Model 2
-│   └── train_hybrid.py         ← train Model 3
+│   ├── train_resnet.py
+│   ├── train_efficientnet.py
+│   ├── train_hybrid.py
+│   └── train_hybrid_exif.py    ← Hybrid with EXIF metadata branch
 │
 ├── evaluation/
-│   ├── evaluate_all.py         ← test all 3 models
-│   └── generate_comparison.py  ← generate comparison table
+│   ├── evaluate_all.py         ← evaluate all models on all conditions
+│   ├── generate_comparison.py  ← comparison tables
+│   └── results/results.json
 │
 ├── explainability/
 │   └── gradcam.py              ← Grad-CAM heatmap generation
 │
 ├── web_app/
-│   ├── app.py                  ← Flask backend
+│   ├── app.py                  ← Flask backend (single + batch routes)
+│   ├── batch_utils.py          ← ZIP extraction, validation, batch store
+│   ├── exif_utils.py           ← EXIF feature extraction
+│   ├── models_v2.py            ← Hybrid model with EXIF branch
 │   ├── templates/
-│   │   ├── index.html          ← upload page
-│   │   └── results.html        ← results display page
+│   │   ├── index.html
+│   │   ├── results.html
+│   │   └── batch.html
 │   └── static/
 │       ├── css/style.css
-│       └── js/main.js
+│       └── js/ (main.js, batch.js)
 │
-├── saved_models/               ← .pth files go here (not committed)
-│   ├── .gitkeep
-│
-├── results/                    ← evaluation outputs, heatmaps
-│   ├── .gitkeep
-│
+├── saved_models/               ← .pth weights and training histories
 ├── requirements.txt
-├── .gitignore
 └── README.md
 ```
 
@@ -336,35 +315,30 @@ forgery_detection/
 
 | Component | Technology |
 |-----------|-----------|
-| Deep Learning | PyTorch + TorchVision |
+| Deep Learning | PyTorch, TorchVision |
 | Model Architectures | ResNet50, EfficientNet-B4 |
 | Image Processing | OpenCV, Pillow |
-| Explainable AI | Grad-CAM (pytorch-grad-cam) |
-| Evaluation | Scikit-learn |
+| Explainability | Grad-CAM |
+| Evaluation | Scikit-learn, Matplotlib, Seaborn |
 | Web Framework | Flask |
-| Visualization | Matplotlib, Seaborn |
-| Training Platform | Google Colab (T4 GPU) |
+| Training Platform | Google Colab (GPU) |
 
 ---
 
 ## References
 
-1. Y. Wang et al., "Robust Image Forgery Detection Over Online Social Network Shared Images," CVPR 2022
-2. Z. Guo and Y. Liu, "Hybrid Spatial-Frequency Domain Deepfake Detection Network," IEEE Access, 2023
-3. X. Zhang et al., "Frequency-Aware Deepfake Detection for Improving Generalization," IEEE Access, 2022
-4. J. Patel et al., "Explainable Deepfake Detection Using Deep Learning Techniques," IEEE Access, 2023
-
-Full reference list available in the project synopsis.
-
----
-
-## CV Entry
-
-> **Image Forgery Detection Using Deep Learning** | PyTorch, EfficientNet-B4, Flask
-> Developed a hybrid CNN and frequency-domain model for detecting manipulated social media images with Grad-CAM explainability and platform-aware compression training.
-> GitHub: https://github.com/nmit-1NT23CS120/22CSP69_57-Image-Forgery-Detection
-> NMIT | Semester 6 | 2025–26
-
----
-
-*Submitted for Major Project Work – Phase 1 | Academic Year 2025–26 | VTU*
+1. H. Wu, J. Zhou, J. Tian, and J. Liu, "Robust Image Forgery Detection over Online Social Network Shared Images," in Proc. IEEE/CVF CVPR, pp. 13440–13449, 2022.
+2. M. Agarwal and R. Kumar, "Deep Learning-Based Image Forgery Detection: Recent Advances and Challenges," IEEE Access, vol. 11, pp. 51412–51430, 2023.
+3. R. Singh and K. Patel, "Attention-Based CNN for Image Forgery Detection," IEEE Trans. Inf. Forensics Security, vol. 18, pp. 2104–2116, 2023.
+4. Z. Guo and Y. Liu, "Hybrid Spatial-Frequency Domain Deepfake Detection Network," IEEE Access, vol. 11, pp. 67214–67226, 2023.
+5. X. Chen, J. Liu, and Y. Wang, "Vision Transformer Based Deepfake Detection Framework," IEEE Access, vol. 11, pp. 92310–92321, 2023.
+6. H. Wang, J. Zhao, and P. Li, "Transformer-Based Deepfake Detection with Spatial-Frequency Features," IEEE Trans. Multimedia, vol. 25, pp. 2874–2886, 2023.
+7. J. Frank and L. Verdoliva, "Robust Deepfake Detection Under Real-World Compression Conditions," IEEE Trans. Inf. Forensics Security, vol. 18, pp. 4201–4214, 2023.
+8. S. Tariq, S. Lee, H. Kim, Y. Shin, and S. Woo, "Domain Adaptation for Deepfake Detection in Social Media Environments," IEEE Trans. Multimedia, vol. 25, pp. 1820–1832, 2023.
+9. J. Patel, R. Shah, and N. Mehta, "Explainable Deepfake Detection Using Deep Learning Techniques," IEEE Access, vol. 11, pp. 100321–100333, 2023.
+10. Z. Liu et al., "Swin Transformer: Hierarchical Vision Transformer Using Shifted Windows," in Proc. IEEE/CVF ICCV, pp. 10012–10022, 2021.
+11. L. Zhang, Q. Liu, and H. Zhou, "Compression-Resilient Deepfake Detection Using Multi-Domain Features," IEEE Trans. Multimedia, vol. 26, pp. 1142–1155, 2024.
+12. W. Shan et al., "RIFD-Net: A Robust Image Forgery Detection Network," IEEE Access, vol. 12, pp. 20326–20340, 2024.
+13. F. Wang et al., "Deepfake Detection Based on the Adaptive Fusion of Spatial-Frequency Features," Int. J. Intell. Syst., vol. 2024, Art. no. 7578036, 2024.
+14. D. Li et al., "Learnable Frequency Decomposition for Image Forgery Detection and Localization," in Proc. IJCAI, pp. 1359–1367, 2025.
+15. E. Liang, K. Zhang, Z. Hua, and X. Jia, "Frequency-Driven Deep Learning Network for Image Splicing Forgery Detection," Knowledge-Based Systems, vol. 330, Art. no. 114365, 2025.
